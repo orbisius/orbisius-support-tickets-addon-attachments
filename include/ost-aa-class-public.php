@@ -22,7 +22,11 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
             <label class="col-md-3 control-label" for="orbisius_support_tickets_data_attachments">
                 <?php _e('Ticket Attachments', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN); ?></label>
             <div class="col-md-9">
-                <input type="file" name="orbisius_support_tickets_data_attachments" multiple 
+                <input type="file"
+                       id="orbisius_support_tickets_data_attachments" 
+                       class="form-control orbisius_support_tickets_data_attachments orbisius_support_tickets_full_width"
+                       name="orbisius_support_tickets_data[attachments]" 
+                       multiple 
                        accept="<?php echo apply_filters('orbisius_support_tickets_filter_file_types_allowed', "image/*,.pdf,.txt"); ?>"/>
             </div>
         </div>
