@@ -14,6 +14,7 @@
 define("ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_BASE_PLUGIN", __FILE__);
 define("ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_BASE_DIR", dirname(__FILE__));
 define("ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_BASE_URL", plugins_url('', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_BASE_PLUGIN));
+define("ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN", "orbisius_support_tickets_attachments_addon");
 
 /**
  * Plugin init. Check is Orbisius_Support_Tickets is active.
@@ -22,7 +23,10 @@ define("ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_BASE_URL", plugins_url('', OR
  */
 function ost_aa_init() {
     if (class_exists('Orbisius_Support_Tickets_Module_Core_CPT')) {
-        
+        $includes = glob(ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_BASE_DIR . '/include/*.php');
+        foreach ($includes as $include_file) {
+            require_once( $include_file );
+        }
     }
 }
 
