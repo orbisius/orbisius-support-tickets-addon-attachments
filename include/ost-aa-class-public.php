@@ -60,7 +60,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
                 foreach ($attachments_data['tmp_name'] as $key => $temp_file_path) {
                     $new_file_name = str_replace(" ", "_", $attachments_data['name'][$key]);
-                    $new_file_path = $ticket_folder_path . $new_file_name;
+                    $new_file_path = str_replace("\\", '/', $ticket_folder_path . $new_file_name);
                     if (move_uploaded_file($temp_file_path, $new_file_path)) {
                         $new_file_url = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_URL . $deep_folder . $new_file_name;
                         $attachments[$key]['url'] = $new_file_url;
@@ -103,6 +103,9 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
     public function show_ticket_attachments($ctx) {
         $attachments = get_post_meta($ctx['ticket_id'], "_ticket_attachments", true);
+        if (isset($_REQUEST['delete_file'])) {
+            $attachments = $this->delete_attachment_file($ctx, $attachments);
+        }
         if (!empty($attachments)) {
             ?>
             <div class="ticket_attachments_wrapper">
@@ -110,10 +113,14 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 <ul>
                     <?php
                     foreach ($attachments as $key => $attachment) {
-                        echo sprintf('<li><a href="%2$s" target="_blank">%1$s</a> <a href="#">%3$s</a></li>',
+                        $parameters = array_merge($_REQUEST, array('delete_file' => $key));
+                        $delete_url = esc_url(add_query_arg($parameters, get_permalink()));
+                        echo sprintf('<li><a href="%2$s" target="_blank">%1$s</a> <a href="%5$s" data-id="%4$s">%3$s</a></li>',
                                 $attachment['name'],
                                 $attachment['url'],
-                                __('Delete File', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN)
+                                __('Delete File', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN),
+                                $key,
+                                $delete_url
                         );
                     }
                     ?>
@@ -121,6 +128,23 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
             </div>
             <?php
         }
+    }
+
+    public function delete_attachment_file($ctx, $attachments) {
+        $file_id = $_REQUEST['delete_file'];
+        $delete_file_path = $attachments[$file_id]['path'];
+        try {
+            if (unlink($delete_file_path)) {
+                unset($attachments[$file_id]);
+                update_post_meta($ctx['ticket_id'], "_ticket_attachments", $attachments);
+                do_action('orbisius_support_tickets_filter_submit_ticket_form_after_delete_file', $attachments);
+            } else {
+                throw new Exception("Error deleting file attachment");
+            }
+        } catch (Exception $ex) {
+            wp_die($ex->getMessage());
+        }
+        return $attachments;
     }
 
 }
