@@ -36,7 +36,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
     public function process_attachments_files($ctx) {
         $attachments_data = isset($_FILES["orbisius_support_tickets_data_attachments"]) ? $_FILES["orbisius_support_tickets_data_attachments"] : array();
-        if (count($attachments_data)) {
+        if ($attachments_data['tmp_name'][0] !== "") {
             try {
                 if (!isset($ctx['ticket_id'])) {
                     throw new Exception("Error inserting the ticket post");
