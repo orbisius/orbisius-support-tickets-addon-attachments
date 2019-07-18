@@ -9,6 +9,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     public function init() {
         add_action('orbisius_support_tickets_action_submit_ticket_form_before_submit_button', array($this, 'add_attachment_field_to_ticket_form'));
         add_action('orbisius_support_tickets_action_submit_ticket_after_insert', array($this, 'process_attachments_files'), 10, 1);
+        add_action('orbisius_support_tickets_view_ticket_before_ticket_content_wrapper', array($this, 'show_ticket_attachments'), 10, 1);
     }
 
     /**
@@ -98,6 +99,28 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
             }
         }
         return 1;
+    }
+
+    public function show_ticket_attachments($ctx) {
+        $attachments = get_post_meta($ctx['ticket_id'], "_ticket_attachments", true);
+        if (!empty($attachments)) {
+            ?>
+            <div class="ticket_attachments_wrapper">
+                <strong><?php _e('Ticket Attachments:', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN); ?></strong>
+                <ul>
+                    <?php
+                    foreach ($attachments as $key => $attachment) {
+                        echo sprintf('<li><a href="%2$s" target="_blank">%1$s</a> <a href="#">%3$s</a></li>',
+                                $attachment['name'],
+                                $attachment['url'],
+                                __('Delete File', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN)
+                        );
+                    }
+                    ?>
+                </ul>
+            </div>
+            <?php
+        }
     }
 
 }
