@@ -12,8 +12,12 @@ class Orbisius_Support_Tickets_Attachments_Addon_Admin {
 
     public function create_attachments_files_directory() {
         if (!is_dir(ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR)) {
-            if (!wp_mkdir_p(ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR)) {
-                // Throw error at create the files directory
+            try {
+                if (!wp_mkdir_p(ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR)) {
+                    throw new Exception("Error creating the support tickets main folder");
+                }
+            } catch (Exception $ex) {
+                wp_die();
             }
         }
     }
