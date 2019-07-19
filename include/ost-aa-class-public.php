@@ -1,5 +1,7 @@
 <?php
 
+new Orbisius_Support_Tickets_Attachments_Addon_Public();
+
 class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
     function __construct() {
@@ -8,8 +10,8 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
     public function init() {
         add_action('orbisius_support_tickets_action_submit_ticket_form_before_submit_button', array($this, 'add_attachment_field_to_ticket_form'));
-        add_action('orbisius_support_tickets_action_submit_ticket_after_insert', array($this, 'process_attachments_files'), 10, 1);
-        add_action('orbisius_support_tickets_view_ticket_before_ticket_content_wrapper', array($this, 'show_ticket_attachments'), 10, 1);
+        add_action('orbisius_support_tickets_action_submit_ticket_after_insert', array($this, 'process_attachments_files'));
+        add_action('orbisius_support_tickets_view_ticket_before_ticket_content_wrapper', array($this, 'show_ticket_attachments'));
     }
 
     /**
@@ -42,16 +44,20 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 if (!isset($ctx['ticket_id'])) {
                     throw new Exception("Error inserting the ticket post");
                 }
+
                 if (!$this->check_attachment_files_error($attachments_data)) {
                     throw new Exception("Error uploading the files");
                 }
+
                 if (!$this->check_attachment_files_max_size($attachments_data)) {
                     throw new Exception("Error file size limit");
                 }
 
                 $attachments = array();
                 $hash = md5($ctx['ticket_id']);
-                $deep_folder = substr($hash, 0, 1) . "/" . substr($hash, 1, 1) . "/" . substr($hash, 2, 1) . "/" . $ctx['ticket_id'] . "/";
+                $deep_folder = substr($hash, 0, 1) . "/"
+                               . substr($hash, 1, 1) . "/"
+                               . substr($hash, 2, 1) . "/" . $ctx['ticket_id'] . "/";
                 $ticket_folder_path = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . $deep_folder;
 
                 if (!wp_mkdir_p($ticket_folder_path)) {
@@ -61,7 +67,8 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 foreach ($attachments_data['tmp_name'] as $key => $temp_file_path) {
                     $new_file_name = str_replace(" ", "_", $attachments_data['name'][$key]);
                     $new_file_path = str_replace("\\", '/', $ticket_folder_path . $new_file_name);
-                    if (move_uploaded_file($temp_file_path, $new_file_path)) {
+
+                    if (move_uploaded_file($temp_file_path, $new_file_path) || copy($temp_file_path, $new_file_path)) {
                         $new_file_url = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_URL . $deep_folder . $new_file_name;
                         $attachments[$key]['url'] = $new_file_url;
                         $attachments[$key]['path'] = $new_file_path;
@@ -91,6 +98,10 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         return 1;
     }
 
+	/**
+	 * @param $attachments_data
+	 * @return int
+	 */
     public function check_attachment_files_max_size($attachments_data) {
         $limit_size = apply_filters('orbisius_support_tickets_filter_submit_ticket_form_file_limit_size', 5000000);
         foreach ($attachments_data['size'] as $size) {
@@ -101,6 +112,9 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         return 1;
     }
 
+	/**
+	 * @param $ctx
+	 */
     public function show_ticket_attachments($ctx) {
         $attachments = get_post_meta($ctx['ticket_id'], "_ticket_attachments", true);
         if (isset($_REQUEST['delete_file'])) {
@@ -133,20 +147,20 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     public function delete_attachment_file($ctx, $attachments) {
         $file_id = $_REQUEST['delete_file'];
         $delete_file_path = $attachments[$file_id]['path'];
+
         try {
-            if (unlink($delete_file_path)) {
-                unset($attachments[$file_id]);
-                update_post_meta($ctx['ticket_id'], "_ticket_attachments", $attachments);
-                do_action('orbisius_support_tickets_filter_submit_ticket_form_after_delete_file', $attachments);
-            } else {
-                throw new Exception("Error deleting file attachment");
+            if (!unlink($delete_file_path)) {
+	            throw new Exception( "Error deleting file attachment" );
             }
+
+            unset($attachments[$file_id]);
+            update_post_meta($ctx['ticket_id'], "_ticket_attachments", $attachments);
+            do_action('orbisius_support_tickets_filter_submit_ticket_form_after_delete_file', $attachments);
         } catch (Exception $ex) {
             wp_die($ex->getMessage());
         }
+
         return $attachments;
     }
-
 }
 
-new Orbisius_Support_Tickets_Attachments_Addon_Public();
