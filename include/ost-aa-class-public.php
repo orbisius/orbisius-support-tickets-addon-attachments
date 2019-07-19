@@ -41,12 +41,12 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         $attachments_data = isset($_FILES["orbisius_support_tickets_data_attachments"]) ? $_FILES["orbisius_support_tickets_data_attachments"] : array();
         if ($attachments_data['tmp_name'][0] !== "") {
             try {
-                if (!isset($ctx['ticket_id'])) {
-                    throw new Exception("Error inserting the ticket post");
+                if (empty($ctx['ticket_id'])) {
+                    throw new Exception("Missing ticket id");
                 }
 
                 if (!$this->check_attachment_files_error($attachments_data)) {
-                    throw new Exception("Error uploading the files");
+                    throw new Exception("Error uploading the ticket attachments");
                 }
 
                 if (!$this->check_attachment_files_max_size($attachments_data)) {
@@ -57,11 +57,27 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 $hash = md5($ctx['ticket_id']);
                 $deep_folder = substr($hash, 0, 1) . "/"
                                . substr($hash, 1, 1) . "/"
-                               . substr($hash, 2, 1) . "/" . $ctx['ticket_id'] . "/";
+                               . substr($hash, 2, 1) . "/"
+                               . $ctx['ticket_id'] . "/";
+
                 $ticket_folder_path = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . $deep_folder;
 
-                if (!wp_mkdir_p($ticket_folder_path)) {
-                    throw new Exception("Error creating the ticket folder");
+                if (!is_dir($ticket_folder_path)) {
+	                if ( ! wp_mkdir_p( $ticket_folder_path ) ) {
+		                throw new Exception( "Error creating the ticket folder" );
+	                }
+
+	                $htaccess_file = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . '/.htaccess';
+
+	                if (!file_exists($htaccess_file)) {
+	                    file_put_contents($htaccess_file, 'deny from all', LOCK_EX);
+                    }
+
+	                $index_file = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . '/index.html';
+
+	                if (!file_exists($index_file)) {
+	                    touch($index_file); // doesn't need content. an empty file prevents file list if enabled.
+                    }
                 }
 
                 foreach ($attachments_data['tmp_name'] as $key => $temp_file_path) {
