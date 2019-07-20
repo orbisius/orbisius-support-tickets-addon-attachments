@@ -7,6 +7,8 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
     function __construct() {
         add_action('init', array($this, 'init'));
+        add_action('wp_ajax_nopriv_action_download_file', array($this, 'download_attachment_file'));
+        add_action('wp_ajax_nopriv_action_delete_file', array($this, 'delete_attachment_file'));
     }
 
     public function init() {
@@ -66,7 +68,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 $deep_folder = substr($hash, 0, 1) . "/"
                         . substr($hash, 1, 1) . "/"
                         . substr($hash, 2, 1) . "/"
-                        . $ticket_id . "/";
+                        . $ticket_id;
 
                 $this->ticket_folder_path = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_SUBDIR . $deep_folder;
 
@@ -170,7 +172,8 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
      * @param $ctx
      */
     public function show_ticket_attachments($ctx) {
-        $attachments = get_post_meta($ctx['ticket_id'], "_ticket_attachments", true);
+        $ticket_id = $ctx['ticket_id'];
+        $attachments = $this->get_all_ticket_attachments($ticket_id);
         if (isset($_REQUEST['delete_file'])) {
             $attachments = $this->delete_attachment_file($ctx, $attachments);
         }
@@ -180,15 +183,15 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 <strong><?php _e('Ticket Attachments:', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN); ?></strong>
                 <ul>
                     <?php
-                    foreach ($attachments as $key => $attachment) {
-                        $parameters = array_merge($_REQUEST, array('delete_file' => $key));
-                        $delete_url = esc_url(add_query_arg($parameters, get_permalink()));
-                        echo sprintf('<li><a href="%2$s" target="_blank">%1$s</a> <a href="%5$s" data-id="%4$s">%3$s</a></li>',
-                                $attachment['name'],
-                                $attachment['url'],
-                                __('Delete File', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN),
-                                $key,
-                                $delete_url
+                    foreach ($attachments as $attachment) {
+                        echo sprintf('<li>'
+                                . '<a class="ticket_attachments_download" href="#" data-id="%4$s">%1$s</a> '
+                                . '<a class="ticket_attachments_delete" href="#" data-id="%4$s">%3$s</a>'
+                                . '</li>',
+                                $attachment->post_title,
+                                $attachment->guid,
+                                __('Delete File', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN),                                
+                                $attachment->ID
                         );
                     }
                     ?>
@@ -198,23 +201,27 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         }
     }
 
-    public function delete_attachment_file($ctx, $attachments) {
-        $file_id = $_REQUEST['delete_file'];
-        $delete_file_path = $attachments[$file_id]['path'];
-
-        try {
-            if (!unlink($delete_file_path)) {
-                throw new Exception("Error deleting file attachment");
-            }
-
-            unset($attachments[$file_id]);
-            update_post_meta($ctx['ticket_id'], "_ticket_attachments", $attachments);
-            do_action('orbisius_support_tickets_filter_submit_ticket_form_after_delete_file', $attachments);
-        } catch (Exception $ex) {
-            wp_die($ex->getMessage());
-        }
-
+    /**
+     * 
+     * @param type $ticket_id
+     * @return type Posts array
+     */
+    public function get_all_ticket_attachments($ticket_id) {
+        $attachments = get_posts(array(
+            'post_type' => 'attachment',
+            'posts_per_page' => -1,
+            'post_parent' => $ticket_id,
+            'exclude' => get_post_thumbnail_id($ticket_id)
+        ));
         return $attachments;
+    }
+
+    public function delete_attachment_file($ctx) {
+        wp_die();
+    }
+
+    public function download_attachment_file($ctx) {
+        wp_die();
     }
 
 }
