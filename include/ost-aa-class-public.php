@@ -3,6 +3,8 @@ new Orbisius_Support_Tickets_Attachments_Addon_Public();
 
 class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
+    private $ticket_folder_path;
+
     function __construct() {
         add_action('init', array($this, 'init'));
     }
@@ -66,10 +68,10 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                         . substr($hash, 2, 1) . "/"
                         . $ticket_id . "/";
 
-                $ticket_folder_path = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . $deep_folder;
+                $this->ticket_folder_path = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_SUBDIR . $deep_folder;
 
-                if (!is_dir($ticket_folder_path)) {
-                    if (!wp_mkdir_p($ticket_folder_path)) {
+                if (!is_dir($this->ticket_folder_path)) {
+                    if (!wp_mkdir_p($this->ticket_folder_path)) {
                         throw new Exception("Error creating the ticket folder");
                     }
 
@@ -101,7 +103,9 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                     $file_array['size'] = $attachments_data['size'][$key];
 
                     // do the validation and storage stuff
-                    $attachment_id = media_handle_sideload($file_array, $ticket_id, "Ticket Attachment");
+                    add_filter('upload_dir', array($this, 'custom_upload_dir'));
+                    $attachment_id = media_handle_sideload($file_array, $ticket_id);
+                    remove_filter('upload_dir', array($this, 'custom_upload_dir'));
 
                     // If error storing permanently, unlink
                     if (is_wp_error($attachment_id)) {
@@ -115,6 +119,20 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 wp_die($ex->getMessage());
             }
         }
+    }
+
+    /**
+     * 
+     * @param type $path
+     * @return string
+     */
+    public function custom_upload_dir($path) {
+        $path['basedir'] = WP_CONTENT_DIR;
+        $path['baseurl'] = WP_CONTENT_URL;
+        $path['subdir'] = $this->ticket_folder_path;
+        $path['path'] = $path['basedir'] . $this->ticket_folder_path;
+        $path['url'] = $path['baseurl'] . $this->ticket_folder_path;
+        return $path;
     }
 
     /**
