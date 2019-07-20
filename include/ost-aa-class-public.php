@@ -7,14 +7,34 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
     function __construct() {
         add_action('init', array($this, 'init'));
-        add_action('wp_ajax_nopriv_action_download_file', array($this, 'download_attachment_file'));
-        add_action('wp_ajax_nopriv_action_delete_file', array($this, 'delete_attachment_file'));
+        add_action('wp_ajax_orbisius_support_tickets_action_download_file', array($this, 'download_attachment_file'));
+        add_action('wp_ajax_orbisius_support_tickets_action_delete_file', array($this, 'delete_attachment_file'));
+        add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
     }
 
     public function init() {
         add_action('orbisius_support_tickets_action_submit_ticket_form_before_submit_button', array($this, 'add_attachment_field_to_ticket_form'));
         add_action('orbisius_support_tickets_action_submit_ticket_after_insert', array($this, 'process_attachments_files'));
         add_action('orbisius_support_tickets_view_ticket_before_ticket_content_wrapper', array($this, 'show_ticket_attachments'));
+    }
+
+    public function enqueue_scripts() {
+        wp_register_script(
+                ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN . "-ticket-actions",
+                ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_BASE_URL . "/assets/js/ticket-attachments-actions.js",
+                array('jquery'),
+                ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_VERSION,
+                true
+        );
+        wp_localize_script(
+                ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN . "-ticket-actions",
+                "OST_AA",
+                array(
+                    'ajaxurl' => admin_url('admin-ajax.php'),
+                    'download_nonce' => wp_create_nonce("orbisius_support_tickets_action_download_file"),
+                    'delete_nonce' => wp_create_nonce("orbisius_support_tickets_action_delete_file"),
+                )
+        );
     }
 
     /**
@@ -77,13 +97,13 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                         throw new Exception("Error creating the ticket folder");
                     }
 
-                    $htaccess_file = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . '/.htaccess';
+                    $htaccess_file = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . '.htaccess';
 
                     if (!file_exists($htaccess_file)) {
                         file_put_contents($htaccess_file, 'deny from all', LOCK_EX);
                     }
 
-                    $index_file = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . '/index.html';
+                    $index_file = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . 'index.html';
 
                     if (!file_exists($index_file)) {
                         touch($index_file); // doesn't need content. an empty file prevents file list if enabled.
@@ -174,10 +194,8 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     public function show_ticket_attachments($ctx) {
         $ticket_id = $ctx['ticket_id'];
         $attachments = $this->get_all_ticket_attachments($ticket_id);
-        if (isset($_REQUEST['delete_file'])) {
-            $attachments = $this->delete_attachment_file($ctx, $attachments);
-        }
         if (!empty($attachments)) {
+            wp_enqueue_script(ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN . "-ticket-actions");
             ?>
             <div class="ticket_attachments_wrapper">
                 <strong><?php _e('Ticket Attachments:', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN); ?></strong>
@@ -185,12 +203,12 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                     <?php
                     foreach ($attachments as $attachment) {
                         echo sprintf('<li>'
-                                . '<a class="ticket_attachments_download" href="#" data-id="%4$s">%1$s</a> '
-                                . '<a class="ticket_attachments_delete" href="#" data-id="%4$s">%3$s</a>'
+                                . '<a class="ticket_attachment_download" href="#" data-id="%4$s">%1$s</a> '
+                                . '<a class="ticket_attachment_delete" href="#" data-id="%4$s">%3$s</a>'
                                 . '</li>',
                                 $attachment->post_title,
                                 $attachment->guid,
-                                __('Delete File', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN),                                
+                                __('Delete File', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN),
                                 $attachment->ID
                         );
                     }
@@ -216,12 +234,25 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         return $attachments;
     }
 
-    public function delete_attachment_file($ctx) {
-        wp_die();
+    public function download_attachment_file() {
+        if (check_ajax_referer("orbisius_support_tickets_action_download_file")) {
+            echo "Download action";
+            wp_die();
+        }
     }
 
-    public function download_attachment_file($ctx) {
-        wp_die();
+    public function delete_attachment_file() {
+        if (check_ajax_referer("orbisius_support_tickets_action_delete_file")) {
+            $attachment_id = $_POST['id'];
+            $file_path = str_replace("uploads/", "", get_attached_file($attachment_id));
+            if (wp_delete_attachment($attachment_id, true)) {
+                wp_delete_file($file_path);
+                echo 'OK';
+            } else {
+                echo __('Error when trying to delete ticket attachment.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN);
+            }
+            wp_die();
+        }
     }
 
 }
