@@ -1,5 +1,4 @@
 <?php
-
 new Orbisius_Support_Tickets_Attachments_Addon_Public();
 
 class Orbisius_Support_Tickets_Attachments_Addon_Public {
@@ -37,6 +36,12 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         <?php
     }
 
+    /**
+     * Process the attachments files
+     * 
+     * @param type $ctx
+     * @throws Exception
+     */
     public function process_attachments_files($ctx) {
         $attachments_data = isset($_FILES["orbisius_support_tickets_data_attachments"]) ? $_FILES["orbisius_support_tickets_data_attachments"] : array();
         if ($attachments_data['tmp_name'][0] !== "") {
@@ -54,50 +59,57 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 }
 
                 $attachments = array();
-                $hash = md5($ctx['ticket_id']);
+                $ticket_id = $ctx['ticket_id'];
+                $hash = md5($ticket_id);
                 $deep_folder = substr($hash, 0, 1) . "/"
-                               . substr($hash, 1, 1) . "/"
-                               . substr($hash, 2, 1) . "/"
-                               . $ctx['ticket_id'] . "/";
+                        . substr($hash, 1, 1) . "/"
+                        . substr($hash, 2, 1) . "/"
+                        . $ticket_id . "/";
 
                 $ticket_folder_path = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . $deep_folder;
 
                 if (!is_dir($ticket_folder_path)) {
-	                if ( ! wp_mkdir_p( $ticket_folder_path ) ) {
-		                throw new Exception( "Error creating the ticket folder" );
-	                }
-
-	                $htaccess_file = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . '/.htaccess';
-
-	                if (!file_exists($htaccess_file)) {
-	                    file_put_contents($htaccess_file, 'deny from all', LOCK_EX);
+                    if (!wp_mkdir_p($ticket_folder_path)) {
+                        throw new Exception("Error creating the ticket folder");
                     }
 
-	                $index_file = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . '/index.html';
+                    $htaccess_file = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . '/.htaccess';
 
-	                if (!file_exists($index_file)) {
-	                    touch($index_file); // doesn't need content. an empty file prevents file list if enabled.
+                    if (!file_exists($htaccess_file)) {
+                        file_put_contents($htaccess_file, 'deny from all', LOCK_EX);
+                    }
+
+                    $index_file = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . '/index.html';
+
+                    if (!file_exists($index_file)) {
+                        touch($index_file); // doesn't need content. an empty file prevents file list if enabled.
                     }
                 }
 
                 foreach ($attachments_data['tmp_name'] as $key => $temp_file_path) {
-                    $new_file_name = str_replace(" ", "_", $attachments_data['name'][$key]);
-                    $new_file_path = str_replace("\\", '/', $ticket_folder_path . $new_file_name);
 
-                    if (move_uploaded_file($temp_file_path, $new_file_path) || copy($temp_file_path, $new_file_path)) {
-                        $new_file_url = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_URL . $deep_folder . $new_file_name;
-                        $attachments[$key]['url'] = $new_file_url;
-                        $attachments[$key]['path'] = $new_file_path;
-                        $attachments[$key]['name'] = $attachments_data['name'][$key];
-                    } else {
-                        throw new Exception("Error moving the ticket attachments to the ticket folder");
+                    if (!function_exists('media_handle_upload')) {
+                        require_once(ABSPATH . "wp-admin" . '/includes/image.php'); // required to process image files type
+                        require_once(ABSPATH . "wp-admin" . '/includes/file.php');
+                        require_once(ABSPATH . "wp-admin" . '/includes/media.php');
                     }
-                }
 
-                if (update_post_meta($ctx['ticket_id'], '_ticket_attachments', $attachments)) {
-                    do_action('orbisius_support_tickets_filter_submit_ticket_form_after_upload_files', $attachments);
-                } else {
-                    throw new Exception("Error moving the ticket attachments to the ticket folder");
+                    $file_array['tmp_name'] = $temp_file_path;
+                    $file_array['name'] = $attachments_data['name'][$key];
+                    $file_array['type'] = $attachments_data['type'][$key];
+                    $file_array['error'] = $attachments_data['error'][$key];
+                    $file_array['size'] = $attachments_data['size'][$key];
+
+                    // do the validation and storage stuff
+                    $attachment_id = media_handle_sideload($file_array, $ticket_id, "Ticket Attachment");
+
+                    // If error storing permanently, unlink
+                    if (is_wp_error($attachment_id)) {
+                        unlink($file_array['tmp_name']);
+                        throw new Exception("Error storing the ticket attachment");
+                    }
+
+                    do_action('orbisius_support_tickets_filter_submit_ticket_form_after_upload_file', $attachment_id);
                 }
             } catch (Exception $ex) {
                 wp_die($ex->getMessage());
@@ -105,6 +117,12 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         }
     }
 
+    /**
+     * Check all files selected on the input file were uploaded successfully.
+     * 
+     * @param type $attachments_data
+     * @return int
+     */
     public function check_attachment_files_error($attachments_data) {
         foreach ($attachments_data['error'] as $error) {
             if ($error) {
@@ -114,10 +132,12 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         return 1;
     }
 
-	/**
-	 * @param $attachments_data
-	 * @return int
-	 */
+    /**
+     * Check all files selected on the input file don't are larger than the limit size
+     * 
+     * @param type $attachments_data
+     * @return int
+     */
     public function check_attachment_files_max_size($attachments_data) {
         $limit_size = apply_filters('orbisius_support_tickets_filter_submit_ticket_form_file_limit_size', 5000000);
         foreach ($attachments_data['size'] as $size) {
@@ -128,9 +148,9 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         return 1;
     }
 
-	/**
-	 * @param $ctx
-	 */
+    /**
+     * @param $ctx
+     */
     public function show_ticket_attachments($ctx) {
         $attachments = get_post_meta($ctx['ticket_id'], "_ticket_attachments", true);
         if (isset($_REQUEST['delete_file'])) {
@@ -166,7 +186,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
         try {
             if (!unlink($delete_file_path)) {
-	            throw new Exception( "Error deleting file attachment" );
+                throw new Exception("Error deleting file attachment");
             }
 
             unset($attachments[$file_id]);
@@ -178,5 +198,5 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
         return $attachments;
     }
-}
 
+}
