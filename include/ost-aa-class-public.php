@@ -9,6 +9,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         add_action('init', array($this, 'init'));
         add_action('wp_ajax_orbisius_support_tickets_action_download_file', array($this, 'download_attachment_file'));
         add_action('wp_ajax_orbisius_support_tickets_action_delete_file', array($this, 'delete_attachment_file'));
+        add_action('wp_ajax_orbisius_support_tickets_action_new_file', array($this, 'add_attachment_file'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
     }
 
@@ -47,7 +48,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         ?>
         <div class="form-group">
             <label class="col-md-3 control-label" for="orbisius_support_tickets_data_attachments">
-                <?php _e('Ticket Attachments', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN); ?></label>
+                <?php _e('Add Ticket Attachments', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN); ?></label>
             <div class="col-md-9">
                 <input type="file"
                        id="orbisius_support_tickets_data_attachments" 
@@ -214,6 +215,22 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                     }
                     ?>
                 </ul>
+                <form method="POST" id="orbisius_support_tickets_attachments_form" data-id="<?php echo $ticket_id; ?>">
+                    <?php
+                    wp_nonce_field('orbisius_support_tickets_action_new_file');
+                    $this->add_attachment_field_to_ticket_form();
+                    ?>
+                    <div class="form-group">
+                        <div class="col-md-12 text-right">
+                            <button type="submit"
+                                    id="orbisius_support_tickets_attachments_form_submit"
+                                    name="orbisius_support_tickets_attachments_form_submit"
+                                    class="orbisius_support_tickets_attachments_form_submit btn btn-primary">
+                                <?php _e('Submit', 'orbisius_support_tickets'); ?>
+                            </button>
+                        </div>
+                    </div>
+                </form>
             </div>
             <?php
         }
@@ -236,8 +253,12 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
     public function download_attachment_file() {
         if (check_ajax_referer("orbisius_support_tickets_action_download_file")) {
-            echo "Download action";
-            wp_die();
+            /* $attachment_id = $_POST['id'];
+              $file_path = str_replace("uploads/", "", get_attached_file($attachment_id));
+              $mimetype = get_post_mime_type($attachment_id);
+              header("Content-Type: " . $mimetype);
+              echo readfile($file_path);
+              wp_die(); */
         }
     }
 
@@ -251,6 +272,14 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
             } else {
                 echo __('Error when trying to delete ticket attachment.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN);
             }
+            wp_die();
+        }
+    }
+
+    public function add_attachment_file() {
+        if (check_ajax_referer("orbisius_support_tickets_action_new_file")) {
+            $ctx['ticket_id'] = $_POST['ticket_id'];
+            $this->process_attachments_files($ctx);
             wp_die();
         }
     }
