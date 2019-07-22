@@ -1,14 +1,9 @@
 jQuery(document).ready(function () {
-    jQuery('.ticket_attachment_download, .ticket_attachment_delete').click(function (ev) {
+    jQuery('.ticket_attachment_delete').click(function (ev) {
         ev.preventDefault();
         var link = jQuery(this);
-        if (link.hasClass('ticket_attachment_download')) {
-            var action = "orbisius_support_tickets_action_download_file";
-            var nonce = OST_AA.download_nonce;
-        } else {
-            var action = "orbisius_support_tickets_action_delete_file";
-            var nonce = OST_AA.delete_nonce;
-        }
+        var action = "orbisius_support_tickets_action_delete_file";
+        var nonce = OST_AA.delete_nonce;
         var id = link.attr('data-id');
         jQuery.ajax({
             method: "POST",
@@ -19,12 +14,14 @@ jQuery(document).ready(function () {
                 id: id
             },
             beforeSend: function () {
+                link.attr('disabled', true);
             }
         }).done(function (data) {
             if (data === "OK") {
-                link.parent('li').remove();
+                link.parent('li').fadeOut('fast').remove();
             } else {
-                alert(data);
+                alert(data);                
+                link.attr('disabled', false);
             }
         }).fail(function () {
 
