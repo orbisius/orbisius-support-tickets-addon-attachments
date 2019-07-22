@@ -268,6 +268,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
             $file_path = str_replace("uploads/", "", get_attached_file($attachment_id));
             if (wp_delete_attachment($attachment_id, true)) {
                 wp_delete_file($file_path);
+                do_action('orbisius_support_tickets_filter_submit_ticket_form_after_delete_file', $attachment_id);
                 echo 'OK';
             } else {
                 echo __('Error when trying to delete ticket attachment.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN);
