@@ -204,11 +204,10 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                     <?php
                     foreach ($attachments as $attachment) {
                         echo sprintf('<li>'
-                                . '<a class="ticket_attachment_download" href="#" data-id="%4$s">%1$s</a> '
-                                . '<a class="ticket_attachment_delete" href="#" data-id="%4$s">%3$s</a>'
+                                . '<a class="ticket_attachment_download" href="#" data-id="%3$s">%1$s</a> '
+                                . '<a class="ticket_attachment_delete" href="#" data-id="%3$s">%2$s</a>'
                                 . '</li>',
                                 $attachment->post_title,
-                                $attachment->guid,
                                 __('Delete File', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN),
                                 $attachment->ID
                         );
