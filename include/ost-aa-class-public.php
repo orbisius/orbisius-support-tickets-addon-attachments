@@ -32,7 +32,6 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 "OST_AA",
                 array(
                     'ajaxurl' => admin_url('admin-ajax.php'),
-                    'download_nonce' => wp_create_nonce("orbisius_support_tickets_action_download_file"),
                     'delete_nonce' => wp_create_nonce("orbisius_support_tickets_action_delete_file"),
                 )
         );
@@ -203,13 +202,15 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 <ul>
                     <?php
                     foreach ($attachments as $attachment) {
+                        $download_url = admin_url('admin-ajax.php?action=orbisius_support_tickets_action_download_file&id=' . $attachment->ID);
                         echo sprintf('<li>'
-                                . '<a class="ticket_attachment_download" href="#" data-id="%3$s">%1$s</a> '
+                                . '<a class="ticket_attachment_download" href="%4$s" data-id="%3$s" target="_blank" download>%1$s</a> '
                                 . '<a class="ticket_attachment_delete" href="#" data-id="%3$s">%2$s</a>'
                                 . '</li>',
                                 $attachment->post_title,
                                 __('Delete File', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN),
-                                $attachment->ID
+                                $attachment->ID,
+                                wp_nonce_url($download_url, "orbisius_support_tickets_action_download_file", "download_nonce")
                         );
                     }
                     ?>
@@ -251,13 +252,14 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     }
 
     public function download_attachment_file() {
-        if (check_ajax_referer("orbisius_support_tickets_action_download_file")) {
-            /* $attachment_id = $_POST['id'];
-              $file_path = str_replace("uploads/", "", get_attached_file($attachment_id));
-              $mimetype = get_post_mime_type($attachment_id);
-              header("Content-Type: " . $mimetype);
-              echo readfile($file_path);
-              wp_die(); */
+        if (check_ajax_referer("orbisius_support_tickets_action_download_file", "download_nonce")) {
+            $attachment_id = $_REQUEST['id'];
+            $file_path = str_replace("uploads/", "", get_attached_file($attachment_id));
+            $mimetype = get_post_mime_type($attachment_id);
+            header("Content-Type: " . $mimetype);
+            header("Content-Disposition: attachment; filename=" . basename($file_path));
+            echo file_get_contents($file_path);
+            wp_die();
         }
     }
 
