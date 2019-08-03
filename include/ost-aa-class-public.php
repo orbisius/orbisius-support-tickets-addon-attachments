@@ -258,11 +258,9 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         if (is_singular('orb_support_ticket') && isset($_REQUEST['download_file'])) {
             try {
                 $attachment_id = intval($this->request_obj->get('download_file'));
-
                 if (!$attachment_id) {
                     throw new Exception("Invalid attachment id");
                 }
-
                 add_filter('upload_dir', array($this, 'custom_upload_dir'));
                 $file_path = get_attached_file($attachment_id, true);
                 remove_filter('upload_dir', array($this, 'custom_upload_dir'));
@@ -284,7 +282,6 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 } else {
                     header('Pragma: public');
                 }
-
                 // the actual file that will be downloaded
                 $download_file_name = basename($file_path);
                 $default_content_type = 'application/octet-stream';
@@ -294,65 +291,60 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 }
                 $ext = end($get_ext_splits);
                 $ext = strtolower($ext);
-
-                $content_type = get_post_mime_type($attachment_id);
-                if (empty($content_type)) {
-                    // http://en.wikipedia.org/wiki/Internet_media_type
-                    $content_types_array = array(
-                        'pdf' => 'application/pdf',
-                        'exe' => 'application/octet-stream',
-                        'zip' => 'application/zip',
-                        'gzip' => 'application/gzip',
-                        'gz' => 'application/x-gzip',
-                        'z' => 'application/x-compress',
-                        'cer' => 'application/x-x509-ca-cert',
-                        'vcf' => 'application/text/x-vCard',
-                        'vcard' => 'application/text/x-vCard',
-                        // doc
-                        "tsv" => "text/tab-separated-values",
-                        "txt" => "text/plain",
-                        'dot' => 'application/msword',
-                        'rtf' => 'application/msword',
-                        'doc' => 'application/msword',
-                        'docx' => 'application/msword',
-                        'xls' => 'application/vnd.xls',
-                        'xlsx' => 'application/vnd.ms-excel',
-                        'csv' => 'application/vnd.ms-excel',
-                        'ppt' => 'application/vnd.ms-powerpoint',
-                        'pptx' => 'application/vnd.ms-powerpoint',
-                        'mdb' => 'application/x-msaccess',
-                        'mpp' => 'application/vnd.ms-project',
-                        'js' => 'text/javascript',
-                        'css' => 'text/css',
-                        'htm' => 'text/html',
-                        'html' => 'text/html',
-                        // images
-                        'gif' => 'image/gif',
-                        'png' => 'image/png',
-                        'jpg' => 'image/jpg',
-                        'jpeg' => 'image/jpg',
-                        'jfif' => 'image/pipeg',
-                        'jpe' => 'image/jpeg',
-                        'bmp' => 'image/bmp',
-                        'ics' => 'text/calendar',
-                        // audio & video
-                        'au' => 'audio/basic',
-                        'mid' => 'audio/mid',
-                        'mp3' => 'audio/mpeg',
-                        'avi' => 'video/x-msvideo',
-                        'mp4' => 'video/mp4',
-                        'mp2' => 'video/mpeg',
-                        'mpa' => 'video/mpeg',
-                        'mpe' => 'video/mpeg',
-                        'mpeg' => 'video/mpeg',
-                        'mpg' => 'video/mpeg',
-                        'mpv2' => 'video/mpeg',
-                        'mov' => 'video/quicktime',
-                        'movie' => 'video/x-sgi-movie',
-                    );
-                    $content_type = empty($content_types_array[$ext]) ? $default_content_type : $content_types_array[$ext];
-                }
-
+                // http://en.wikipedia.org/wiki/Internet_media_type
+                $content_types_array = array(
+                    'pdf' => 'application/pdf',
+                    'exe' => 'application/octet-stream',
+                    'zip' => 'application/zip',
+                    'gzip' => 'application/gzip',
+                    'gz' => 'application/x-gzip',
+                    'z' => 'application/x-compress',
+                    'cer' => 'application/x-x509-ca-cert',
+                    'vcf' => 'application/text/x-vCard',
+                    'vcard' => 'application/text/x-vCard',
+                    // doc
+                    "tsv" => "text/tab-separated-values",
+                    "txt" => "text/plain",
+                    'dot' => 'application/msword',
+                    'rtf' => 'application/msword',
+                    'doc' => 'application/msword',
+                    'docx' => 'application/msword',
+                    'xls' => 'application/vnd.xls',
+                    'xlsx' => 'application/vnd.ms-excel',
+                    'csv' => 'application/vnd.ms-excel',
+                    'ppt' => 'application/vnd.ms-powerpoint',
+                    'pptx' => 'application/vnd.ms-powerpoint',
+                    'mdb' => 'application/x-msaccess',
+                    'mpp' => 'application/vnd.ms-project',
+                    'js' => 'text/javascript',
+                    'css' => 'text/css',
+                    'htm' => 'text/html',
+                    'html' => 'text/html',
+                    // images
+                    'gif' => 'image/gif',
+                    'png' => 'image/png',
+                    'jpg' => 'image/jpg',
+                    'jpeg' => 'image/jpg',
+                    'jfif' => 'image/pipeg',
+                    'jpe' => 'image/jpeg',
+                    'bmp' => 'image/bmp',
+                    'ics' => 'text/calendar',
+                    // audio & video
+                    'au' => 'audio/basic',
+                    'mid' => 'audio/mid',
+                    'mp3' => 'audio/mpeg',
+                    'avi' => 'video/x-msvideo',
+                    'mp4' => 'video/mp4',
+                    'mp2' => 'video/mpeg',
+                    'mpa' => 'video/mpeg',
+                    'mpe' => 'video/mpeg',
+                    'mpeg' => 'video/mpeg',
+                    'mpg' => 'video/mpeg',
+                    'mpv2' => 'video/mpeg',
+                    'mov' => 'video/quicktime',
+                    'movie' => 'video/x-sgi-movie',
+                );
+                $content_type = empty($content_types_array[$ext]) ? $default_content_type : $content_types_array[$ext];
                 header('Expires: 0');
                 header('Content-Description: File Transfer');
                 header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
@@ -360,10 +352,8 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 header('Content-Transfer-Encoding: binary');
                 header('Content-Length: ' . (string) (filesize($file_path)));
                 header('Content-Disposition: attachment; filename="' . $download_file_name . '"');
-
                 ob_clean();
                 flush();
-
                 readfile($file_path);
             } catch (Exception $ex) {
                 wp_die($ex->getMessage());
@@ -373,18 +363,19 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
     public function delete_attachment_file() {
         if (check_ajax_referer("orbisius_support_tickets_action_delete_file")) {
-            $attachment_id = $_POST['id'];
+            $attachment_id = intval($this->request_obj->get('id'));
+            if (!$attachment_id) {
+                $this->send_json_response(0, _('Invalid attachment ID.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN));
+            }
             add_filter('upload_dir', array($this, 'custom_upload_dir'));
             $file_path = get_attached_file($attachment_id, true);
+            $delete_file = wp_delete_attachment($attachment_id, true);
             remove_filter('upload_dir', array($this, 'custom_upload_dir'));
-            if (wp_delete_attachment($attachment_id, true)) {
-                wp_delete_file($file_path);
-                do_action('orbisius_support_tickets_filter_submit_ticket_form_after_delete_file', $attachment_id);
-                echo 'OK';
-            } else {
-                echo __('Error when trying to delete ticket attachment.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN);
+            if ($delete_file === false || $delete_file === null) {
+                $this->send_json_response(0, __('Error when trying to delete ticket attachment.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN));
             }
-            wp_die();
+            do_action('orbisius_support_tickets_filter_submit_ticket_form_after_delete_file', $attachment_id);
+            $this->send_json_response(1, __('The attachment file have succesfully deleted.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN));
         }
     }
 
@@ -394,6 +385,14 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
             $this->process_attachments_files($ctx);
             wp_die();
         }
+    }
+
+    public function send_json_response($status, $message = '', $data = []) {
+        wp_send_json(array(
+            'status' => $status,
+            'message' => $message,
+            'data' => $data
+        ));
     }
 
 }
