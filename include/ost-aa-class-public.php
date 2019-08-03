@@ -9,7 +9,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     function __construct() {
         $this->request_obj = Orbisius_Support_Tickets_Request::getInstance();
         add_action('init', array($this, 'init'));
-        add_action('template_redirect', array($this, 'download_attachment_file'));
+        add_action('wp_ajax_orbisius_support_tickets_action_download_file', array($this, 'download_attachment_file'));
         add_action('wp_ajax_orbisius_support_tickets_action_delete_file', array($this, 'delete_attachment_file'));
         add_action('wp_ajax_orbisius_support_tickets_action_new_file', array($this, 'add_attachment_file'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
@@ -70,7 +70,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
      */
     public function process_attachments_files($ctx, $return = false) {
         $attachments_data = isset($_FILES["orbisius_support_tickets_data_attachments"]) ? $_FILES["orbisius_support_tickets_data_attachments"] : array();
-        if (!empty($attachments_data['tmp_name'][0])) {
+        if (!empty($attachments_data['tmp_name'][0])) { //Check if there are attachment files submitted
             try {
                 if (empty($ctx['ticket_id'])) {
                     throw new Exception("Missing ticket id");
@@ -201,6 +201,9 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
      * @param $ctx
      */
     public function show_ticket_attachments($ctx) {
+        if (!$this->user_have_access()) {
+            return;
+        }
         $ticket_id = $ctx['ticket_id'];
         $attachments = $this->get_all_ticket_attachments($ticket_id);
         if (!empty($attachments)) {
@@ -211,16 +214,15 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 <ul>
                     <?php
                     foreach ($attachments as $attachment) {
-                        $parameters = array_merge($_REQUEST, array('download_file' => $attachment->ID));
-                        $download_url = esc_url(add_query_arg($parameters, get_permalink()));
+                        $download_url = admin_url('admin-ajax.php?action=orbisius_support_tickets_action_download_file&id=' . $attachment->ID);
                         echo sprintf('<li>'
-                                . '<a class="ticket_attachment_download" href="%4$s" data-id="%3$s" download>%1$s</a> '
+                                . '<a class="ticket_attachment_download" href="%4$s" target="_blank" download>%1$s</a> '
                                 . '<a class="ticket_attachment_delete" href="#" data-id="%3$s">%2$s</a>'
                                 . '</li>',
                                 $attachment->post_title,
                                 __('Delete File', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN),
                                 $attachment->ID,
-                                $download_url
+                                wp_nonce_url($download_url, "orbisius_support_tickets_action_download_file", "download_nonce")
                         );
                     }
                     ?>
@@ -262,109 +264,101 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     }
 
     public function download_attachment_file() {
-        if (is_singular('orb_support_ticket') && isset($_REQUEST['download_file'])) {
-            try {
-                $attachment_id = intval($this->request_obj->get('download_file'));
-                if (!$attachment_id) {
-                    throw new Exception("Invalid attachment id");
+        if (check_ajax_referer("orbisius_support_tickets_action_download_file", "download_nonce")) {
+            $attachment_id = intval($this->request_obj->get('id'));
+
+            add_filter('upload_dir', array($this, 'custom_upload_dir'));
+            $file_path = get_attached_file($attachment_id, true);
+            remove_filter('upload_dir', array($this, 'custom_upload_dir'));
+
+            // When safe mode is enabled: Warning: set_time_limit(): Cannot set max execution time limit due to system policy in ...
+            @set_time_limit(12 * 3600); // 12 hours
+            if (ini_get('zlib.output_compression')) {
+                @ini_set('zlib.output_compression', 0);
+                if (function_exists('apache_setenv')) {
+                    @apache_setenv('no-gzip', 1);
                 }
-                add_filter('upload_dir', array($this, 'custom_upload_dir'));
-                $file_path = get_attached_file($attachment_id, true);
-                remove_filter('upload_dir', array($this, 'custom_upload_dir'));
-                // When safe mode is enabled: Warning: set_time_limit(): Cannot set max execution time limit due to system policy in ...
-                @set_time_limit(12 * 3600); // 12 hours
-                if (ini_get('zlib.output_compression')) {
-                    @ini_set('zlib.output_compression', 0);
-                    if (function_exists('apache_setenv')) {
-                        @apache_setenv('no-gzip', 1);
-                    }
-                }
-                if (!empty($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443)) {
-                    header("Cache-control: private");
-                    header('Pragma: private');
-                    // IE 6.0 fix for SSL
-                    // SRC http://ca3.php.net/header
-                    // Brandon K [ brandonkirsch uses gmail ] 25-Apr-2007 03:34
-                    header('Cache-Control: maxage=3600'); //Adjust maxage appropriately
-                } else {
-                    header('Pragma: public');
-                }
-                // the actual file that will be downloaded
-                $download_file_name = basename($file_path);
-                $default_content_type = 'application/octet-stream';
-                $get_ext_splits = explode('.', $download_file_name);
-                if (empty($get_ext_splits)) {
-                    throw new Exception(__METHOD__ . " So sorry but I refuse to serve extenless file.");
-                }
-                $ext = end($get_ext_splits);
-                $ext = strtolower($ext);
-                // http://en.wikipedia.org/wiki/Internet_media_type
-                $content_types_array = array(
-                    'pdf' => 'application/pdf',
-                    'exe' => 'application/octet-stream',
-                    'zip' => 'application/zip',
-                    'gzip' => 'application/gzip',
-                    'gz' => 'application/x-gzip',
-                    'z' => 'application/x-compress',
-                    'cer' => 'application/x-x509-ca-cert',
-                    'vcf' => 'application/text/x-vCard',
-                    'vcard' => 'application/text/x-vCard',
-                    // doc
-                    "tsv" => "text/tab-separated-values",
-                    "txt" => "text/plain",
-                    'dot' => 'application/msword',
-                    'rtf' => 'application/msword',
-                    'doc' => 'application/msword',
-                    'docx' => 'application/msword',
-                    'xls' => 'application/vnd.xls',
-                    'xlsx' => 'application/vnd.ms-excel',
-                    'csv' => 'application/vnd.ms-excel',
-                    'ppt' => 'application/vnd.ms-powerpoint',
-                    'pptx' => 'application/vnd.ms-powerpoint',
-                    'mdb' => 'application/x-msaccess',
-                    'mpp' => 'application/vnd.ms-project',
-                    'js' => 'text/javascript',
-                    'css' => 'text/css',
-                    'htm' => 'text/html',
-                    'html' => 'text/html',
-                    // images
-                    'gif' => 'image/gif',
-                    'png' => 'image/png',
-                    'jpg' => 'image/jpg',
-                    'jpeg' => 'image/jpg',
-                    'jfif' => 'image/pipeg',
-                    'jpe' => 'image/jpeg',
-                    'bmp' => 'image/bmp',
-                    'ics' => 'text/calendar',
-                    // audio & video
-                    'au' => 'audio/basic',
-                    'mid' => 'audio/mid',
-                    'mp3' => 'audio/mpeg',
-                    'avi' => 'video/x-msvideo',
-                    'mp4' => 'video/mp4',
-                    'mp2' => 'video/mpeg',
-                    'mpa' => 'video/mpeg',
-                    'mpe' => 'video/mpeg',
-                    'mpeg' => 'video/mpeg',
-                    'mpg' => 'video/mpeg',
-                    'mpv2' => 'video/mpeg',
-                    'mov' => 'video/quicktime',
-                    'movie' => 'video/x-sgi-movie',
-                );
-                $content_type = empty($content_types_array[$ext]) ? $default_content_type : $content_types_array[$ext];
-                header('Expires: 0');
-                header('Content-Description: File Transfer');
-                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-                header('Content-Type: ' . $content_type);
-                header('Content-Transfer-Encoding: binary');
-                header('Content-Length: ' . (string) (filesize($file_path)));
-                header('Content-Disposition: attachment; filename="' . $download_file_name . '"');
-                ob_clean();
-                flush();
-                readfile($file_path);
-            } catch (Exception $ex) {
-                wp_die($ex->getMessage());
             }
+            if (!empty($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443)) {
+                header("Cache-control: private");
+                header('Pragma: private');
+                // IE 6.0 fix for SSL
+                // SRC http://ca3.php.net/header
+                // Brandon K [ brandonkirsch uses gmail ] 25-Apr-2007 03:34
+                header('Cache-Control: maxage=3600'); //Adjust maxage appropriately
+            } else {
+                header('Pragma: public');
+            }
+            // the actual file that will be downloaded
+            $download_file_name = basename($file_path);
+            $default_content_type = 'application/octet-stream';
+            $get_ext_splits = explode('.', $download_file_name);
+            $ext = end($get_ext_splits);
+            $ext = strtolower($ext);
+            // http://en.wikipedia.org/wiki/Internet_media_type
+            $content_types_array = array(
+                'pdf' => 'application/pdf',
+                'exe' => 'application/octet-stream',
+                'zip' => 'application/zip',
+                'gzip' => 'application/gzip',
+                'gz' => 'application/x-gzip',
+                'z' => 'application/x-compress',
+                'cer' => 'application/x-x509-ca-cert',
+                'vcf' => 'application/text/x-vCard',
+                'vcard' => 'application/text/x-vCard',
+                // doc
+                "tsv" => "text/tab-separated-values",
+                "txt" => "text/plain",
+                'dot' => 'application/msword',
+                'rtf' => 'application/msword',
+                'doc' => 'application/msword',
+                'docx' => 'application/msword',
+                'xls' => 'application/vnd.xls',
+                'xlsx' => 'application/vnd.ms-excel',
+                'csv' => 'application/vnd.ms-excel',
+                'ppt' => 'application/vnd.ms-powerpoint',
+                'pptx' => 'application/vnd.ms-powerpoint',
+                'mdb' => 'application/x-msaccess',
+                'mpp' => 'application/vnd.ms-project',
+                'js' => 'text/javascript',
+                'css' => 'text/css',
+                'htm' => 'text/html',
+                'html' => 'text/html',
+                // images
+                'gif' => 'image/gif',
+                'png' => 'image/png',
+                'jpg' => 'image/jpg',
+                'jpeg' => 'image/jpg',
+                'jfif' => 'image/pipeg',
+                'jpe' => 'image/jpeg',
+                'bmp' => 'image/bmp',
+                'ics' => 'text/calendar',
+                // audio & video
+                'au' => 'audio/basic',
+                'mid' => 'audio/mid',
+                'mp3' => 'audio/mpeg',
+                'avi' => 'video/x-msvideo',
+                'mp4' => 'video/mp4',
+                'mp2' => 'video/mpeg',
+                'mpa' => 'video/mpeg',
+                'mpe' => 'video/mpeg',
+                'mpeg' => 'video/mpeg',
+                'mpg' => 'video/mpeg',
+                'mpv2' => 'video/mpeg',
+                'mov' => 'video/quicktime',
+                'movie' => 'video/x-sgi-movie',
+            );
+            $content_type = empty($content_types_array[$ext]) ? $default_content_type : $content_types_array[$ext];
+            header('Expires: 0');
+            header('Content-Description: File Transfer');
+            header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+            header('Content-Type: ' . $content_type);
+            header('Content-Transfer-Encoding: binary');
+            header('Content-Length: ' . (string) (filesize($file_path)));
+            header('Content-Disposition: attachment; filename="' . $download_file_name . '"');
+            ob_clean();
+            flush();
+            readfile($file_path);
         }
     }
 
@@ -404,6 +398,26 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
             'message' => $message,
             'data' => $data
         ));
+    }
+
+    public function user_have_access() {
+        if (!is_user_logged_in()) {
+            return false;
+        }
+        if (current_user_can('editor') || current_user_can('administrator')) {
+            return true;
+        }
+        if (isset($_REQUEST['orbisius_support_tickets_data'])) {
+            $ticket_id = intval($this->request_obj->get('orbisius_support_tickets_data')["ticket_id"]);
+            $post_author_id = intval(get_post_field('post_author', $ticket_id));
+            if ($post_author_id === get_current_user_id()) {
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
     }
 
 }
