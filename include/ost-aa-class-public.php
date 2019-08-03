@@ -68,7 +68,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
      * @param type $ctx
      * @throws Exception
      */
-    public function process_attachments_files($ctx) {
+    public function process_attachments_files($ctx, $return = false) {
         $attachments_data = isset($_FILES["orbisius_support_tickets_data_attachments"]) ? $_FILES["orbisius_support_tickets_data_attachments"] : array();
         if (!empty($attachments_data['tmp_name'][0])) {
             try {
@@ -139,8 +139,15 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
                     do_action('orbisius_support_tickets_filter_submit_ticket_form_after_upload_file', $attachment_id);
                 }
+                if ($return) {
+                    return true;
+                }
             } catch (Exception $ex) {
-                wp_die($ex->getMessage());
+                if ($return) {
+                    return $ex->getMessage();
+                } else {
+                    wp_die($ex->getMessage());
+                }
             }
         }
     }
@@ -381,9 +388,13 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
     public function add_attachment_file() {
         if (check_ajax_referer("orbisius_support_tickets_action_new_file")) {
-            $ctx['ticket_id'] = $_POST['ticket_id'];
-            $this->process_attachments_files($ctx);
-            wp_die();
+            $ctx['ticket_id'] = intval($this->request_obj->get('ticket_id'));
+            $result = $this->process_attachments_files($ctx, true);
+            if ($result === true) {
+                $this->send_json_response(1);
+            } else {
+                $this->send_json_response(0, $result);
+            }
         }
     }
 

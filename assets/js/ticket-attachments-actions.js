@@ -49,12 +49,18 @@ jQuery(document).ready(function () {
             processData: false,
             contentType: false,
             beforeSend: function () {
-
+                form.find('button').attr('disabled', 'disabled');
             }
-        }).done(function (data) {
-            location.reload();
+        }).done(function (response) {
+            if (response.status) {
+                location.reload();
+            } else {
+                alert(response.message);
+            }
         }).fail(function () {
 
+        }).always(function () {
+            form.find('button').removeAttr('disabled');
         });
     });
 });
