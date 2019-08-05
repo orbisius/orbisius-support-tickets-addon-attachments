@@ -6,10 +6,12 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     private $ticket_folder_path;
     private $request_obj;
     private $user_obj;
+    private $ticket_obj;
 
     function __construct() {
         $this->request_obj = Orbisius_Support_Tickets_Request::getInstance();
         $this->user_obj = Orbisius_Support_Tickets_User::getInstance();
+        $this->ticket_obj = Orbisius_Support_Tickets_Module_Core_CPT::getInstance();
         add_action('init', array($this, 'init'));
         add_action('wp_ajax_orbisius_support_tickets_action_download_file', array($this, 'download_attachment_file'));
         add_action('wp_ajax_orbisius_support_tickets_action_delete_file', array($this, 'delete_attachment_file'));
@@ -68,7 +70,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
      * Process the attachments files.
      * 
      * @param type $ctx Context
-     * @return boolean While doing ajax return true if success or string with the exception message
+     * @return boolean|string While doing ajax return true is success or string with the exception message is fail
      * @throws Exception
      * @since 1.0.0
      */
@@ -156,9 +158,10 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     }
 
     /**
+     * Modify the upload dir
      * 
-     * @param type $path
-     * @return string
+     * @param type $path File temporal path
+     * @return string New upload dir path
      */
     public function custom_upload_dir($path) {
         $path['basedir'] = WP_CONTENT_DIR;
@@ -201,12 +204,15 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     }
 
     /**
-     * @param $ctx
+     * Show the tickets list and the new attachment ticket form after the ticket meta and before the ticket content.
+     * 
+     * @param type $ctx Context
+     * @return type null|string Null if user don't have access, HTML string otherwise.
      */
     public function show_ticket_attachments($ctx) {
         $ticket_id = $ctx['ticket_id'];
         if (!$this->user_have_access($ticket_id)) {
-            return;
+            return null;
         }
         $attachments = $this->get_all_ticket_attachments($ticket_id);
         if (!empty($attachments)) {
@@ -217,9 +223,9 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 <ul>
                     <?php
                     foreach ($attachments as $attachment) {
-                        $download_url = admin_url('admin-ajax.php?action=orbisius_support_tickets_action_download_file&id=' . $attachment->ID);
+                        $download_url = admin_url('admin-ajax.php?action=orbisius_support_tickets_action_download_file&id=' . $attachment->ID . '&=ticket-id=', $ticket_id);
                         echo sprintf('<li>'
-                                . '<a class="ticket_attachment_download" href="%4$s" target="_blank" download>%1$s</a> '
+                                . '<a class="ticket_attachment_download" href="%4$s" target="_blank">%1$s</a> '
                                 . '<a class="ticket_attachment_delete" href="#" data-id="%3$s" data-ticket-id="%5$s">%2$s</a>'
                                 . '</li>',
                                 $attachment->post_title,
@@ -231,22 +237,27 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                     }
                     ?>
                 </ul>
-                <form method="POST" id="orbisius_support_tickets_attachments_form" data-id="<?php echo $ticket_id; ?>">
-                    <?php
-                    wp_nonce_field('orbisius_support_tickets_action_new_file');
-                    $this->add_attachment_field_to_ticket_form();
+                <?php
+                //don't show add new attachments form if ticket is closed
+                if ($this->ticket_obj->getStatus($ticket_id) !== Orbisius_Support_Tickets_Module_Core_CPT::STATUS_CLOSED) {
                     ?>
-                    <div class="form-group">
-                        <div class="col-md-12 text-right">
-                            <button type="submit"
-                                    id="orbisius_support_tickets_attachments_form_submit"
-                                    name="orbisius_support_tickets_attachments_form_submit"
-                                    class="orbisius_support_tickets_attachments_form_submit btn btn-primary">
-                                <?php _e('Submit', 'orbisius_support_tickets'); ?>
-                            </button>
+                    <form method="POST" id="orbisius_support_tickets_attachments_form" data-id="<?php echo $ticket_id; ?>">
+                        <?php
+                        wp_nonce_field('orbisius_support_tickets_action_new_file');
+                        $this->add_attachment_field_to_ticket_form();
+                        ?>
+                        <div class="form-group">
+                            <div class="col-md-12 text-right">
+                                <button type="submit"
+                                        id="orbisius_support_tickets_attachments_form_submit"
+                                        name="orbisius_support_tickets_attachments_form_submit"
+                                        class="orbisius_support_tickets_attachments_form_submit btn btn-primary">
+                                    <?php _e('Submit', 'orbisius_support_tickets'); ?>
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                </form>
+                    </form>
+                <?php } ?>
             </div>
             <?php
         }
@@ -268,10 +279,19 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         return $attachments;
     }
 
+    /**
+     *  Handles the Ajax download of ticket attachment files.
+     * 
+     * @since 1.0.0
+     */
     public function download_attachment_file() {
         if (check_ajax_referer("orbisius_support_tickets_action_download_file", "download_nonce")) {
-            $attachment_id = intval($this->request_obj->get('id'));
+            $ticket_id = intval($this->request_obj->get('ticket-id'));
+            if (!$this->user_have_access($ticket_id)) {
+                $this->send_json_response(0);
+            }
 
+            $attachment_id = intval($this->request_obj->get('id'));
             add_filter('upload_dir', array($this, 'custom_upload_dir'));
             $file_path = get_attached_file($attachment_id, true);
             remove_filter('upload_dir', array($this, 'custom_upload_dir'));
@@ -296,64 +316,67 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
             }
             // the actual file that will be downloaded
             $download_file_name = basename($file_path);
-            $default_content_type = 'application/octet-stream';
-            $get_ext_splits = explode('.', $download_file_name);
-            $ext = end($get_ext_splits);
-            $ext = strtolower($ext);
-            // http://en.wikipedia.org/wiki/Internet_media_type
-            $content_types_array = array(
-                'pdf' => 'application/pdf',
-                'exe' => 'application/octet-stream',
-                'zip' => 'application/zip',
-                'gzip' => 'application/gzip',
-                'gz' => 'application/x-gzip',
-                'z' => 'application/x-compress',
-                'cer' => 'application/x-x509-ca-cert',
-                'vcf' => 'application/text/x-vCard',
-                'vcard' => 'application/text/x-vCard',
-                // doc
-                "tsv" => "text/tab-separated-values",
-                "txt" => "text/plain",
-                'dot' => 'application/msword',
-                'rtf' => 'application/msword',
-                'doc' => 'application/msword',
-                'docx' => 'application/msword',
-                'xls' => 'application/vnd.xls',
-                'xlsx' => 'application/vnd.ms-excel',
-                'csv' => 'application/vnd.ms-excel',
-                'ppt' => 'application/vnd.ms-powerpoint',
-                'pptx' => 'application/vnd.ms-powerpoint',
-                'mdb' => 'application/x-msaccess',
-                'mpp' => 'application/vnd.ms-project',
-                'js' => 'text/javascript',
-                'css' => 'text/css',
-                'htm' => 'text/html',
-                'html' => 'text/html',
-                // images
-                'gif' => 'image/gif',
-                'png' => 'image/png',
-                'jpg' => 'image/jpg',
-                'jpeg' => 'image/jpg',
-                'jfif' => 'image/pipeg',
-                'jpe' => 'image/jpeg',
-                'bmp' => 'image/bmp',
-                'ics' => 'text/calendar',
-                // audio & video
-                'au' => 'audio/basic',
-                'mid' => 'audio/mid',
-                'mp3' => 'audio/mpeg',
-                'avi' => 'video/x-msvideo',
-                'mp4' => 'video/mp4',
-                'mp2' => 'video/mpeg',
-                'mpa' => 'video/mpeg',
-                'mpe' => 'video/mpeg',
-                'mpeg' => 'video/mpeg',
-                'mpg' => 'video/mpeg',
-                'mpv2' => 'video/mpeg',
-                'mov' => 'video/quicktime',
-                'movie' => 'video/x-sgi-movie',
-            );
-            $content_type = empty($content_types_array[$ext]) ? $default_content_type : $content_types_array[$ext];
+            $content_type = get_post_mime_type($attachment_id);
+            if (!$content_type) {
+                $default_content_type = 'application/octet-stream';
+                $get_ext_splits = explode('.', $download_file_name);
+                $ext = end($get_ext_splits);
+                $ext = strtolower($ext);
+                // http://en.wikipedia.org/wiki/Internet_media_type
+                $content_types_array = array(
+                    'pdf' => 'application/pdf',
+                    'exe' => 'application/octet-stream',
+                    'zip' => 'application/zip',
+                    'gzip' => 'application/gzip',
+                    'gz' => 'application/x-gzip',
+                    'z' => 'application/x-compress',
+                    'cer' => 'application/x-x509-ca-cert',
+                    'vcf' => 'application/text/x-vCard',
+                    'vcard' => 'application/text/x-vCard',
+                    // doc
+                    "tsv" => "text/tab-separated-values",
+                    "txt" => "text/plain",
+                    'dot' => 'application/msword',
+                    'rtf' => 'application/msword',
+                    'doc' => 'application/msword',
+                    'docx' => 'application/msword',
+                    'xls' => 'application/vnd.xls',
+                    'xlsx' => 'application/vnd.ms-excel',
+                    'csv' => 'application/vnd.ms-excel',
+                    'ppt' => 'application/vnd.ms-powerpoint',
+                    'pptx' => 'application/vnd.ms-powerpoint',
+                    'mdb' => 'application/x-msaccess',
+                    'mpp' => 'application/vnd.ms-project',
+                    'js' => 'text/javascript',
+                    'css' => 'text/css',
+                    'htm' => 'text/html',
+                    'html' => 'text/html',
+                    // images
+                    'gif' => 'image/gif',
+                    'png' => 'image/png',
+                    'jpg' => 'image/jpg',
+                    'jpeg' => 'image/jpg',
+                    'jfif' => 'image/pipeg',
+                    'jpe' => 'image/jpeg',
+                    'bmp' => 'image/bmp',
+                    'ics' => 'text/calendar',
+                    // audio & video
+                    'au' => 'audio/basic',
+                    'mid' => 'audio/mid',
+                    'mp3' => 'audio/mpeg',
+                    'avi' => 'video/x-msvideo',
+                    'mp4' => 'video/mp4',
+                    'mp2' => 'video/mpeg',
+                    'mpa' => 'video/mpeg',
+                    'mpe' => 'video/mpeg',
+                    'mpeg' => 'video/mpeg',
+                    'mpg' => 'video/mpeg',
+                    'mpv2' => 'video/mpeg',
+                    'mov' => 'video/quicktime',
+                    'movie' => 'video/x-sgi-movie',
+                );
+                $content_type = empty($content_types_array[$ext]) ? $default_content_type : $content_types_array[$ext];
+            }
             header('Expires: 0');
             header('Content-Description: File Transfer');
             header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
@@ -376,7 +399,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         if (check_ajax_referer("orbisius_support_tickets_action_delete_file")) {
             $ticket_id = intval($this->request_obj->get('ticket-id'));
             if (!$this->user_have_access($ticket_id)) {
-                $this->send_json_response(0, __('You don\'t access to this ticket.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN));
+                $this->send_json_response(0, __('You do not have access to this ticket.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN));
             }
             $attachment_id = intval($this->request_obj->get('id'));
             if (!$attachment_id) {
@@ -402,7 +425,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         if (check_ajax_referer("orbisius_support_tickets_action_new_file")) {
             $ctx['ticket_id'] = intval($this->request_obj->get('ticket_id'));
             if (!$this->user_have_access($ctx['ticket_id'])) {
-                $this->send_json_response(0, __('You don\'t access to this ticket.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN));
+                $this->send_json_response(0, __('You do not have access to this ticket.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN));
             }
             $result = $this->process_attachments_files($ctx);
             if ($result === true) {
