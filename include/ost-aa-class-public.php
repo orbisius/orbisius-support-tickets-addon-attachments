@@ -65,12 +65,14 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     }
 
     /**
-     * Process the attachments files
+     * Process the attachments files.
      * 
      * @param type $ctx
+     * @return boolean While doing ajax return true | string with the exception message
      * @throws Exception
+     * @since 1.0.0
      */
-    public function process_attachments_files($ctx, $return = false) {
+    public function process_attachments_files($ctx) {
         $attachments_data = isset($_FILES["orbisius_support_tickets_data_attachments"]) ? $_FILES["orbisius_support_tickets_data_attachments"] : array();
         if (!empty($attachments_data['tmp_name'][0])) { //Check if there are attachment files submitted
             try {
@@ -140,11 +142,11 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
                     do_action('orbisius_support_tickets_filter_submit_ticket_form_after_upload_file', $attachment_id);
                 }
-                if ($return) {
+                if (DOING_AJAX) {
                     return true;
                 }
             } catch (Exception $ex) {
-                if ($return) {
+                if (DOING_AJAX) {
                     return $ex->getMessage();
                 } else {
                     wp_die($ex->getMessage());
@@ -202,10 +204,10 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
      * @param $ctx
      */
     public function show_ticket_attachments($ctx) {
-        if (!$this->user_have_access()) {
+        $ticket_id = $ctx['ticket_id'];
+        if (!$this->user_have_access($ticket_id)) {
             return;
         }
-        $ticket_id = $ctx['ticket_id'];
         $attachments = $this->get_all_ticket_attachments($ticket_id);
         if (!empty($attachments)) {
             wp_enqueue_script(ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN . "-ticket-actions");
@@ -380,10 +382,18 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         }
     }
 
+    /**
+     * Handle the Ajax upload of ticket attachments files. 
+     * 
+     * @since 1.0.0
+     */
     public function add_attachment_file() {
         if (check_ajax_referer("orbisius_support_tickets_action_new_file")) {
             $ctx['ticket_id'] = intval($this->request_obj->get('ticket_id'));
-            $result = $this->process_attachments_files($ctx, true);
+            if (!$this->user_have_access($ctx['ticket_id'])) {
+                $this->send_json_response(0, 'You don\'t access to this ticket.');
+            }
+            $result = $this->process_attachments_files($ctx);
             if ($result === true) {
                 $this->send_json_response(1);
             } else {
@@ -392,6 +402,14 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         }
     }
 
+    /**
+     * Send a JSON response back to an Ajax request with a specify format
+     * 
+     * @param type $status (0 for error and 1 for success)
+     * @param type $message
+     * @param type $data
+     * @since 1.0.0
+     */
     public function send_json_response($status, $message = '', $data = []) {
         wp_send_json(array(
             'status' => $status,
@@ -408,7 +426,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
      * @return boolean
      * @since 1.0.0
      */
-    public function user_have_access() {
+    public function user_have_access($ticket_id = 0) {
         if (!is_user_logged_in()) {
             return false;
         }
@@ -416,14 +434,6 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         if ($this->user_obj->isSupportRep($user_id) || $this->user_obj->isAdmin($user_id)) {
             return true;
         }
-        if (!isset($_REQUEST['orbisius_support_tickets_data'])) {
-            return false;
-        }
-        $ticket_data = $this->request_obj->get('orbisius_support_tickets_data');
-        if (!isset($ticket_data['ticket_id'])) {
-            return false;
-        }
-        $ticket_id = intval($ticket_data['ticket_id']);
         $ticket_author_id = intval(get_post_field('post_author', $ticket_id));
         if ($ticket_author_id === $user_id) {
             return true;
