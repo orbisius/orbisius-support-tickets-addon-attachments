@@ -67,8 +67,8 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     /**
      * Process the attachments files.
      * 
-     * @param type $ctx
-     * @return boolean While doing ajax return true | string with the exception message
+     * @param type $ctx Context
+     * @return boolean While doing ajax return true if success or string with the exception message
      * @throws Exception
      * @since 1.0.0
      */
@@ -220,12 +220,13 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                         $download_url = admin_url('admin-ajax.php?action=orbisius_support_tickets_action_download_file&id=' . $attachment->ID);
                         echo sprintf('<li>'
                                 . '<a class="ticket_attachment_download" href="%4$s" target="_blank" download>%1$s</a> '
-                                . '<a class="ticket_attachment_delete" href="#" data-id="%3$s">%2$s</a>'
+                                . '<a class="ticket_attachment_delete" href="#" data-id="%3$s" data-ticket-id="%5$s">%2$s</a>'
                                 . '</li>',
                                 $attachment->post_title,
                                 __('Delete File', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN),
                                 $attachment->ID,
-                                wp_nonce_url($download_url, "orbisius_support_tickets_action_download_file", "download_nonce")
+                                wp_nonce_url($download_url, "orbisius_support_tickets_action_download_file", "download_nonce"),
+                                $ticket_id
                         );
                     }
                     ?>
@@ -252,16 +253,17 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     }
 
     /**
+     * Get all attachments of a ticket post
      * 
-     * @param type $ticket_id
-     * @return type Posts array
+     * @param type $ticket_id Id of the post
+     * @return type Posts array All attachment objects
+     * @since 1.0.0
      */
     public function get_all_ticket_attachments($ticket_id) {
         $attachments = get_posts(array(
             'post_type' => 'attachment',
             'posts_per_page' => -1,
             'post_parent' => $ticket_id,
-            'exclude' => get_post_thumbnail_id($ticket_id)
         ));
         return $attachments;
     }
@@ -365,8 +367,17 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         }
     }
 
+    /**
+     * Handles the Ajax remove of ticket attachment files.
+     * 
+     * @since 1.0.0
+     */
     public function delete_attachment_file() {
         if (check_ajax_referer("orbisius_support_tickets_action_delete_file")) {
+            $ticket_id = intval($this->request_obj->get('ticket-id'));
+            if (!$this->user_have_access($ticket_id)) {
+                $this->send_json_response(0, __('You don\'t access to this ticket.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN));
+            }
             $attachment_id = intval($this->request_obj->get('id'));
             if (!$attachment_id) {
                 $this->send_json_response(0, _('Invalid attachment ID.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN));
@@ -391,7 +402,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         if (check_ajax_referer("orbisius_support_tickets_action_new_file")) {
             $ctx['ticket_id'] = intval($this->request_obj->get('ticket_id'));
             if (!$this->user_have_access($ctx['ticket_id'])) {
-                $this->send_json_response(0, 'You don\'t access to this ticket.');
+                $this->send_json_response(0, __('You don\'t access to this ticket.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN));
             }
             $result = $this->process_attachments_files($ctx);
             if ($result === true) {
@@ -405,9 +416,9 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     /**
      * Send a JSON response back to an Ajax request with a specify format
      * 
-     * @param type $status (0 for error and 1 for success)
-     * @param type $message
-     * @param type $data
+     * @param type $status (0 for error and 1 for success).
+     * @param type $message Message, default empty string.
+     * @param type $data Additional data, default empty array.
      * @since 1.0.0
      */
     public function send_json_response($status, $message = '', $data = []) {
@@ -423,7 +434,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
      * 
      * User must be logged in and be the ticket author, support representative or administrator.
      * 
-     * @return boolean
+     * @return boolean 
      * @since 1.0.0
      */
     public function user_have_access($ticket_id = 0) {

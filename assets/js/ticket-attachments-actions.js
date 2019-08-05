@@ -9,13 +9,15 @@ jQuery(document).ready(function () {
             var action = "orbisius_support_tickets_action_delete_file";
             var nonce = OST_AA.delete_nonce;
             var id = link.attr('data-id');
+            var ticket_id = link.attr('data-ticket-id');
             jQuery.ajax({
                 method: "POST",
                 url: OST_AA.ajaxurl,
                 data: {
                     action: action,
                     _ajax_nonce: nonce,
-                    id: id
+                    id: id,
+                    ticket_id: ticket_id
                 },
                 beforeSend: function () {
                     link.attr('disabled', "disabled");
