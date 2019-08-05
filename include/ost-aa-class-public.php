@@ -5,9 +5,11 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
     private $ticket_folder_path;
     private $request_obj;
+    private $user_obj;
 
     function __construct() {
         $this->request_obj = Orbisius_Support_Tickets_Request::getInstance();
+        $this->user_obj = Orbisius_Support_Tickets_User::getInstance();
         add_action('init', array($this, 'init'));
         add_action('wp_ajax_orbisius_support_tickets_action_download_file', array($this, 'download_attachment_file'));
         add_action('wp_ajax_orbisius_support_tickets_action_delete_file', array($this, 'delete_attachment_file'));
@@ -112,14 +114,13 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                     }
                 }
 
+                if (!function_exists('media_handle_upload')) {
+                    require_once(ABSPATH . "wp-admin" . '/includes/image.php'); // required to process image files type
+                    require_once(ABSPATH . "wp-admin" . '/includes/file.php');
+                    require_once(ABSPATH . "wp-admin" . '/includes/media.php');
+                }
+
                 foreach ($attachments_data['tmp_name'] as $key => $temp_file_path) {
-
-                    if (!function_exists('media_handle_upload')) {
-                        require_once(ABSPATH . "wp-admin" . '/includes/image.php'); // required to process image files type
-                        require_once(ABSPATH . "wp-admin" . '/includes/file.php');
-                        require_once(ABSPATH . "wp-admin" . '/includes/media.php');
-                    }
-
                     $file_array['tmp_name'] = $temp_file_path;
                     $file_array['name'] = $attachments_data['name'][$key];
                     $file_array['type'] = $attachments_data['type'][$key];
@@ -369,7 +370,6 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                 $this->send_json_response(0, _('Invalid attachment ID.', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN));
             }
             add_filter('upload_dir', array($this, 'custom_upload_dir'));
-            $file_path = get_attached_file($attachment_id, true);
             $delete_file = wp_delete_attachment($attachment_id, true);
             remove_filter('upload_dir', array($this, 'custom_upload_dir'));
             if ($delete_file === false || $delete_file === null) {
@@ -400,21 +400,33 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
         ));
     }
 
+    /**
+     * Check is user have access to the ticket. 
+     * 
+     * User must be logged in and be the ticket author, support representative or administrator.
+     * 
+     * @return boolean
+     * @since 1.0.0
+     */
     public function user_have_access() {
         if (!is_user_logged_in()) {
             return false;
         }
-        if (current_user_can('editor') || current_user_can('administrator')) {
+        $user_id = get_current_user_id();
+        if ($this->user_obj->isSupportRep($user_id) || $this->user_obj->isAdmin($user_id)) {
             return true;
         }
-        if (isset($_REQUEST['orbisius_support_tickets_data'])) {
-            $ticket_id = intval($this->request_obj->get('orbisius_support_tickets_data')["ticket_id"]);
-            $post_author_id = intval(get_post_field('post_author', $ticket_id));
-            if ($post_author_id === get_current_user_id()) {
-                return true;
-            } else {
-                return false;
-            }
+        if (!isset($_REQUEST['orbisius_support_tickets_data'])) {
+            return false;
+        }
+        $ticket_data = $this->request_obj->get('orbisius_support_tickets_data');
+        if (!isset($ticket_data['ticket_id'])) {
+            return false;
+        }
+        $ticket_id = intval($ticket_data['ticket_id']);
+        $ticket_author_id = intval(get_post_field('post_author', $ticket_id));
+        if ($ticket_author_id === $user_id) {
+            return true;
         } else {
             return false;
         }
