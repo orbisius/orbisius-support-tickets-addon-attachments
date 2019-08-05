@@ -144,11 +144,11 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
                     do_action('orbisius_support_tickets_filter_submit_ticket_form_after_upload_file', $attachment_id);
                 }
-                if (DOING_AJAX) {
+                if (defined('DOING_AJAX') && DOING_AJAX) {
                     return true;
                 }
             } catch (Exception $ex) {
-                if (DOING_AJAX) {
+                if (defined('DOING_AJAX') && DOING_AJAX) {
                     return $ex->getMessage();
                 } else {
                     wp_die($ex->getMessage());
