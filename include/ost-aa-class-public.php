@@ -98,10 +98,10 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                         . substr($hash, 2, 1) . "/"
                         . $ticket_id;
 
-                $this->ticket_folder_path = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_SUBDIR . $deep_folder;
+                $ticket_files_dir = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . $deep_folder;
 
-                if (!is_dir($this->ticket_folder_path)) {
-                    if (!wp_mkdir_p($this->ticket_folder_path)) {
+                if (!is_dir($ticket_files_dir)) {
+                    if (!wp_mkdir_p($ticket_files_dir)) {
                         throw new Exception("Error creating the ticket folder");
                     }
 
