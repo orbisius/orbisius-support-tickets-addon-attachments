@@ -236,29 +236,29 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                         );
                     }
                     ?>
-                </ul>
-                <?php
-                //don't show add new attachments form if ticket is closed
-                if ($this->ticket_obj->getStatus($ticket_id) !== Orbisius_Support_Tickets_Module_Core_CPT::STATUS_CLOSED) {
-                    ?>
-                    <form method="POST" id="orbisius_support_tickets_attachments_form" data-id="<?php echo $ticket_id; ?>">
-                        <?php
-                        wp_nonce_field('orbisius_support_tickets_action_new_file');
-                        $this->add_attachment_field_to_ticket_form();
-                        ?>
-                        <div class="form-group">
-                            <div class="col-md-12 text-right">
-                                <button type="submit"
-                                        id="orbisius_support_tickets_attachments_form_submit"
-                                        name="orbisius_support_tickets_attachments_form_submit"
-                                        class="orbisius_support_tickets_attachments_form_submit btn btn-primary">
-                                    <?php _e('Submit', 'orbisius_support_tickets'); ?>
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                <?php } ?>
+                </ul>                
             </div>
+            <?php
+        }
+        //don't show add new attachments form if ticket is closed
+        if ($this->ticket_obj->getStatus($ticket_id) !== Orbisius_Support_Tickets_Module_Core_CPT::STATUS_CLOSED) {
+            ?>
+            <form method="POST" id="orbisius_support_tickets_attachments_form" data-id="<?php echo $ticket_id; ?>">
+                <?php
+                wp_nonce_field('orbisius_support_tickets_action_new_file');
+                $this->add_attachment_field_to_ticket_form();
+                ?>
+                <div class="form-group">
+                    <div class="col-md-12 text-right">
+                        <button type="submit"
+                                id="orbisius_support_tickets_attachments_form_submit"
+                                name="orbisius_support_tickets_attachments_form_submit"
+                                class="orbisius_support_tickets_attachments_form_submit btn btn-primary">
+                            <?php _e('Submit', 'orbisius_support_tickets'); ?>
+                        </button>
+                    </div>
+                </div>
+            </form>
             <?php
         }
     }
