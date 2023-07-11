@@ -3,7 +3,7 @@ new Orbisius_Support_Tickets_Attachments_Addon_Public();
 
 class Orbisius_Support_Tickets_Attachments_Addon_Public {
 
-    private $ticket_folder_path;
+    private $ticket_folder_dir;
     private $request_obj;
     private $user_obj;
     private $ticket_obj;
@@ -98,10 +98,10 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                         . substr($hash, 2, 1) . "/"
                         . $ticket_id;
 
-                $ticket_files_dir = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . $deep_folder;
+                $this->ticket_folder_dir = ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_FILES_DIR . $deep_folder;
 
-                if (!is_dir($ticket_files_dir)) {
-                    if (!wp_mkdir_p($ticket_files_dir)) {
+                if (!is_dir($this->ticket_folder_dir)) {
+                    if (!wp_mkdir_p($this->ticket_folder_dir)) {
                         throw new Exception("Error creating the ticket folder");
                     }
 
@@ -166,9 +166,9 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
     public function custom_upload_dir($path) {
         $path['basedir'] = WP_CONTENT_DIR;
         $path['baseurl'] = WP_CONTENT_URL;
-        $path['subdir'] = $this->ticket_folder_path;
-        $path['path'] = $path['basedir'] . $this->ticket_folder_path;
-        $path['url'] = $path['baseurl'] . $this->ticket_folder_path;
+        $path['subdir'] = str_replace(WP_CONTENT_DIR, "", $this->ticket_folder_dir);
+        $path['path'] = $path['basedir'] . $path['subdir'];
+        $path['url'] = $path['baseurl'] . $path['subdir'];
         return $path;
     }
 
@@ -215,8 +215,8 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
             return null;
         }
         $attachments = $this->get_all_ticket_attachments($ticket_id);
+        wp_enqueue_script(ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN . "-ticket-actions");
         if (!empty($attachments)) {
-            wp_enqueue_script(ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN . "-ticket-actions");
             ?>
             <div class="ticket_attachments_wrapper">
                 <strong><?php _e('Ticket Attachments:', ORBISIUS_SUPPORT_TICKETS_ATTACHMENTS_ADDON_TX_DOMAIN); ?></strong>
@@ -225,7 +225,7 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                     foreach ($attachments as $attachment) {
                         $download_url = admin_url('admin-ajax.php?action=orbisius_support_tickets_action_download_file&id=' . $attachment->ID . '&=ticket-id=', $ticket_id);
                         echo sprintf('<li>'
-                                . '<a class="ticket_attachment_download" href="%4$s" target="_blank">%1$s</a> '
+                                . '<a class="ticket_attachment_download" href="%4$s" target="_blank" download>%1$s</a> '
                                 . '<a class="ticket_attachment_delete" href="#" data-id="%3$s" data-ticket-id="%5$s">%2$s</a>'
                                 . '</li>',
                                 $attachment->post_title,
@@ -236,29 +236,29 @@ class Orbisius_Support_Tickets_Attachments_Addon_Public {
                         );
                     }
                     ?>
-                </ul>
-                <?php
-                //don't show add new attachments form if ticket is closed
-                if ($this->ticket_obj->getStatus($ticket_id) !== Orbisius_Support_Tickets_Module_Core_CPT::STATUS_CLOSED) {
-                    ?>
-                    <form method="POST" id="orbisius_support_tickets_attachments_form" data-id="<?php echo $ticket_id; ?>">
-                        <?php
-                        wp_nonce_field('orbisius_support_tickets_action_new_file');
-                        $this->add_attachment_field_to_ticket_form();
-                        ?>
-                        <div class="form-group">
-                            <div class="col-md-12 text-right">
-                                <button type="submit"
-                                        id="orbisius_support_tickets_attachments_form_submit"
-                                        name="orbisius_support_tickets_attachments_form_submit"
-                                        class="orbisius_support_tickets_attachments_form_submit btn btn-primary">
-                                    <?php _e('Submit', 'orbisius_support_tickets'); ?>
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                <?php } ?>
+                </ul>                
             </div>
+            <?php
+        }
+        //don't show add new attachments form if ticket is closed
+        if ($this->ticket_obj->getStatus($ticket_id) !== Orbisius_Support_Tickets_Module_Core_CPT::STATUS_CLOSED) {
+            ?>
+            <form method="POST" id="orbisius_support_tickets_attachments_form" data-id="<?php echo $ticket_id; ?>">
+                <?php
+                wp_nonce_field('orbisius_support_tickets_action_new_file');
+                $this->add_attachment_field_to_ticket_form();
+                ?>
+                <div class="form-group">
+                    <div class="col-md-12 text-right">
+                        <button type="submit"
+                                id="orbisius_support_tickets_attachments_form_submit"
+                                name="orbisius_support_tickets_attachments_form_submit"
+                                class="orbisius_support_tickets_attachments_form_submit btn btn-primary">
+                            <?php _e('Submit', 'orbisius_support_tickets'); ?>
+                        </button>
+                    </div>
+                </div>
+            </form>
             <?php
         }
     }
